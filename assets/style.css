@@ -1,0 +1,19 @@
+* {
+    padding: 0;
+    margin: 0;
+}
+
+QWidget[class="infoBlock"] {
+    background-color: #e0e0e0;
+    border: 1px solid black;
+    border-radius: 20px;
+    margin: 5px;
+}
+
+QWidget[class="infoBlock"] QLabel {
+    /* font-family: "Arial", sans-serif; */
+    /* font-size: 16px; */
+    /* font-weight: bold; */
+    margin: 10px;
+    color: black;
+}
