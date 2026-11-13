@@ -8,6 +8,7 @@ QWidget[class="infoBlock"] {
     border: 1px solid black;
     border-radius: 20px;
     margin: 5px;
+    /* padding: 10px; */
 }
 
 QWidget[class="infoBlock"] QLabel {
@@ -16,4 +17,31 @@ QWidget[class="infoBlock"] QLabel {
     /* font-weight: bold; */
     margin: 10px;
     color: black;
+}
+
+#graph QLabel {
+    margin-bottom: 0;
+}
+
+#graphContainer {
+    background-color: #ffffff;
+    border: 3px solid rgb(116, 115, 115);
+    border-radius: 20px;
+    margin: 5px;
+}
+
+QCheckBox {
+    color: black;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    background-color: #a10000;
+    border: 1px solid black;
+    border-radius: 3px;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #3f8f29;
 }
