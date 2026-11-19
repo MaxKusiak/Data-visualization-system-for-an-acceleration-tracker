@@ -45,3 +45,18 @@ QCheckBox::indicator {
 QCheckBox::indicator:checked {
     background-color: #3f8f29;
 }
+
+QComboBox {
+    background-color: rgb(116, 115, 115);
+    padding: 5px;
+}
+
+QPushButton {
+    background-color: rgb(116, 115, 115);
+    padding: 5px;
+}
+
+QPushButton:pressed {
+    background-color: rgb(79, 79, 79);
+}
+
