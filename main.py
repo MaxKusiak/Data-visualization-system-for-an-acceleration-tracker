@@ -6,7 +6,7 @@ import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QSlider, QCheckBox, QComboBox
+from PySide6.QtWidgets import QFileDialog, QMainWindow, QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QSlider, QCheckBox, QComboBox, QMessageBox
 from PySide6.QtCore import Qt, QThread, Signal
 
 class MainWindow(QMainWindow):
@@ -15,7 +15,10 @@ class MainWindow(QMainWindow):
 
         self.acceleretion_data = [np.array([]), 
                                   np.array([]), 
-                                  np.array([])] 
+                                  np.array([])]
+        self.data_file_path = "data.bin"
+        with open(self.data_file_path, "wb") as file:
+            pass
 
         self.setWindowTitle("Data visualization system for an acceleration tracker")
         self.resize(800, 600)
@@ -40,7 +43,6 @@ class MainWindow(QMainWindow):
         self.settings_layout.addWidget(self.settings_label)
         
         self.is_recording = False
-        self.received_bytes = 0
         
         self.ports_label = QLabel("Port")
         self.ports_label.setStyleSheet("padding: 0px; margin: 0px; padding-left: 5px;")
@@ -49,14 +51,17 @@ class MainWindow(QMainWindow):
         self.settings_layout.addWidget(self.ports_label)
         self.ports = list_ports.comports()
         self.ports_list = QComboBox()
-        for port in self.ports:
-            self.ports_list.addItem(port.description, port.device)
+        if len(self.ports) != 0:
+            for port in self.ports:
+                self.ports_list.addItem(port.description, port.device)
+        else:
+            self.ports_list.addItem("Немає COM портів", None)
         # self.ports_list.currentIndexChanged.connect(self.port_changed)
         self.settings_layout.addWidget(self.ports_list)
         
         self.rate_label = QLabel("Baud Rate")
         self.rate_label.setStyleSheet("padding: 0px; margin: 0px; padding-left: 5px;")
-        self.rate_label.setContentsMargins(0, 0, 0, 0)
+        self.rate_label.setContentsMargins(0, 5, 0, 0)
         self.rate_label.setFont(QFont("Arial", 12))
         self.settings_layout.addWidget(self.rate_label)
         self.rate_list = QComboBox()
@@ -66,11 +71,22 @@ class MainWindow(QMainWindow):
         
         self.connect_port_but = QPushButton("Connect port")
         self.connect_port_but.clicked.connect(self.connect_port)
+        self.connect_port_but.setObjectName("connect_but")
         self.settings_layout.addWidget(self.connect_port_but)
         
         self.disconnect_port_but = QPushButton("Disconnect port")
         self.disconnect_port_but.clicked.connect(self.disconnect_port)
         self.settings_layout.addWidget(self.disconnect_port_but)
+        
+        self.receive_data_but = QPushButton("Receive data")
+        self.receive_data_but.clicked.connect(self.receive_data)
+        self.settings_layout.addWidget(self.receive_data_but)
+        self.receive_data_but.hide()
+        
+        self.connection_status = QLabel("Status: Disconnected!")
+        self.connection_status.setContentsMargins(0, 0, 0, 0)
+        self.connection_status.setFont(QFont("Arial", 12))
+        self.settings_layout.addWidget(self.connection_status)
 
         self.settings_layout.addStretch()
         self.body_layout.addWidget(self.settings)
@@ -167,7 +183,13 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.centralWidget)
 
     def open_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Open File", "", "All Files (*.bin);;Text Files (*.bin)")
+        try:
+            file_path, _ = QFileDialog.getOpenFileName(self, "Open File", "", "All Files (*.bin);;Text Files (*.bin)")
+            self.load_file(file_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to open the file:\n{e}")
+        
+    def load_file(self, file_path):
         if file_path:
             self.acceleretion_data = [np.array([]), 
                                       np.array([]), 
@@ -180,65 +202,76 @@ class MainWindow(QMainWindow):
                 self.acceleretion_data[0] = np.append(self.acceleretion_data[0], measurement[0])
                 self.acceleretion_data[1] = np.append(self.acceleretion_data[1], measurement[1])
                 self.acceleretion_data[2] = np.append(self.acceleretion_data[2], measurement[2])
+            
+            if len(measurements) > 0:
+                self.x1_slider.setMaximum(len(self.acceleretion_data[0]) - 1)
+                self.x2_slider.setMaximum(len(self.acceleretion_data[0]) - 1)
+                self.x2_slider.setValue(len(self.acceleretion_data[0]) - 1)
+                self.x = np.linspace(0, len(self.acceleretion_data[0]) - 1, len(self.acceleretion_data[0]))
                 
-            self.x1_slider.setMaximum(len(self.acceleretion_data[0]) - 1)
-            self.x2_slider.setMaximum(len(self.acceleretion_data[0]) - 1)
-            self.x2_slider.setValue(len(self.acceleretion_data[0]) - 1)
-            self.x = np.linspace(0, len(self.acceleretion_data[0]) - 1, len(self.acceleretion_data[0]))
             self.update_graph()
-
+        
     def save_file(self):
-        # Implement file saving logic here
-        print("Save file action triggered")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save File", "saved_data.bin", "All Files (*.bin);;Text Files (*.bin)")
+        if file_path:
+            try:
+                with open(file_path, "wb") as file, open(self.data_file_path, "rb") as data:
+                    file.write(data.read())
+                QMessageBox.information(self, "Success", "File saved successfully!")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to save the file:\n{e}")    
 
     def connect_port(self):
-        self.serial_reader = SerialReader(port = self.ports_list.currentData(), baudrate=115200)
-    
-        self.serial_reader.connected.connect(self.on_connected)
-        self.serial_reader.disconnected.connect(self.on_disconnected)
-        self.serial_reader.data_received.connect(self.receive_data)
-        self.serial_reader.error.connect(self.on_serial_error)
-        self.serial_reader.start()
+        if not self.is_recording:
+            self.serial_reader = SerialReader(port = self.ports_list.currentData(), baudrate=self.rate_list.currentData())
+        
+            self.serial_reader.connected.connect(self.on_connected)
+            self.serial_reader.disconnected.connect(self.on_disconnected)
+            self.serial_reader.data_received.connect(self.when_receive_data)
+            self.serial_reader.error.connect(self.on_serial_error)
+            # self.serial_reader.start()
+            self.connection_status.setText("Status: Connected!")
+            self.is_recording = True
+            self.receive_data_but.show()
 
     def disconnect_port(self):
-        if hasattr(self, "serial_reader"):
-            if self.serial_reader.isRunning():
-                self.is_recording = False
-                self.received_bytes = 0
-                self.serial_reader.disconnect_port()
+        if self.is_recording:
+            self.serial_reader.disconnect_port()
+            self.connection_status.setText("Status: Disconnected!")
+            self.is_recording = False
+            self.receive_data_but.hide()
 
-    def on_connected(self):
-        print("Connected!")
-        
-        self.is_recording = True
-        self.binary_file = open("data.bin", "wb")
+    def on_connected(self):        
+        self.binary_file = open(self.data_file_path, "wb")
 
     def on_disconnected(self):
-        print("Disconnected!")
-
         if hasattr(self, "binary_file"):
             if not self.binary_file.closed:
                 self.binary_file.close()
 
-    def receive_data(self, data):
+    def when_receive_data(self, data):
         # print("Received:", data)
 
         self.binary_file.write(data)
         self.binary_file.flush()
-        self.received_bytes += len(data)
+        self.load_file(self.data_file_path)
 
-        # print(f"Received: {len(data)} bytes")
-        # print(f"Total: {self.received_bytes} bytes")
+    def receive_data(self):
+        if self.is_recording:
+            print("Receiving data")
+            self.serial_reader.start()
 
     def on_serial_error(self, error):
-        print("Serial error:", error)
-        
-    # def port_changed(self):
-    #     self.ser.port = self.ports_list.currentData()
-    #     print(self.ser.port)
-        
+        QMessageBox.critical(self, "Serial error", error)
+    
     def refresh_ports_list(self):
-        pass
+        self.ports = list_ports.comports()
+        self.ports_list.clear()
+        if len(self.ports) != 0:
+            for port in self.ports:
+                self.ports_list.addItem(port.description, port.device)
+        else:
+            self.ports_list.addItem("Немає COM портів", None)
 
     def update_graph(self):
         self.graph.clear()
@@ -249,7 +282,6 @@ class MainWindow(QMainWindow):
             self.graph.plot(self.x[:len(self.acceleretion_data[1])], self.acceleretion_data[1], pen=pg.mkPen(color="green", width=3), name="Y-axis")
             self.graph.plot(self.x[:len(self.acceleretion_data[2])], self.acceleretion_data[2], pen=pg.mkPen(color="blue", width=3), name="Z-axis")
             
-            print(len(self.acceleretion_data[0]), len(self.acceleretion_data[1]), len(self.acceleretion_data[2]))
             module = np.sqrt(self.acceleretion_data[0]**2 + self.acceleretion_data[1]**2 + self.acceleretion_data[2]**2)
             self.module_graph.plot(self.x[:len(module)], module, pen=pg.mkPen(color="#00a67a", width=3), name="Module")
             
@@ -270,13 +302,22 @@ class MainWindow(QMainWindow):
         self.module_graph.getViewBox().setXLink(self.graph.getViewBox() if self.sync_x_axis_checkbox.isChecked() else None)
         self.module_graph.getViewBox().setYLink(self.graph.getViewBox() if self.sync_y_axis_checkbox.isChecked() else None)
 
+    def get_frequency(self):
+        pass
+    
+    def set_frequency(self, frequency):
+        pass
+    
+    def clear_data(self):
+        pass
+    
 class SerialReader(QThread):
     data_received = Signal(bytes)
     connected = Signal()
     disconnected = Signal()
     error = Signal(str)
     
-    def __init__(self, port, baudrate=9600, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE):
+    def __init__(self, port, baudrate, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE):
         super().__init__()
         
         self.port = port

@@ -30,6 +30,10 @@ QWidget[class="infoBlock"] QLabel {
     margin: 5px;
 }
 
+#connect_but {
+    margin-top: 10px;
+}
+
 QCheckBox {
     color: black;
 }
