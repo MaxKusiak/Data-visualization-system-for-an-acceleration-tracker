@@ -6,8 +6,15 @@ import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QSlider, QCheckBox, QComboBox, QMessageBox, QScrollArea
+from PySide6.QtWidgets import QFileDialog, QMainWindow, QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QSlider, QCheckBox, QComboBox, QMessageBox, QScrollArea, QDoubleSpinBox
 from PySide6.QtCore import Qt, QThread, Signal
+
+def is_float(s):
+    try:
+        num = float(s.replace(",", "."))
+        return not num != num
+    except ValueError:
+        return False
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -21,7 +28,7 @@ class MainWindow(QMainWindow):
             pass
 
         self.setWindowTitle("Data visualization system for an acceleration tracker")
-        self.resize(920, 720)
+        self.resize(970, 770)
         with open("assets/style.css", "r") as f:
             self.setStyleSheet(f.read())
 
@@ -176,27 +183,49 @@ class MainWindow(QMainWindow):
         self.graph_container_layout.addStretch()
         self.graph_layout.addWidget(self.graph_container)
 
-        self.x1_slider_layout = QHBoxLayout()
-        self.x1_slider = QSlider(Qt.Horizontal)
-        self.x1_slider.setMinimum(0)
-        self.x1_slider.setMaximum(10)
-        self.x1_slider.setValue(0)
-        self.x1_slider.valueChanged.connect(self.change_limits)
-        self.x1_slider_layout.addWidget(self.x1_slider)
-        self.x1_slider_label = QLabel(f" Left limit: {self.x1_slider.value()}")
-        self.x1_slider_layout.addWidget(self.x1_slider_label)
-        self.graph_layout.addLayout(self.x1_slider_layout)
+        self.x_limits_lable = QLabel("Time limits:")
+        self.x_limits_lable.setFont(QFont("Arial", 12))
+        self.graph_layout.addWidget(self.x_limits_lable)
+        self.x_limits_layout = QHBoxLayout()
+        
+        self.x1_limit = QLineEdit("0")
+        self.x1_limit.returnPressed.connect(self.change_limits)
+        self.x1_limit_label = QLabel(f"Left limit: ")
+        self.x1_limit_label.setFont(QFont("Arial", 9))
+        self.x_limits_layout.addWidget(self.x1_limit_label)
+        self.x_limits_layout.addWidget(self.x1_limit)
 
-        self.x2_slider = QSlider(Qt.Horizontal)
-        self.x2_slider.setMinimum(0)
-        self.x2_slider.setMaximum(10)
-        self.x2_slider.setValue(10)
-        self.x2_slider.valueChanged.connect(self.change_limits)
-        self.x2_slider_layout = QHBoxLayout()
-        self.x2_slider_layout.addWidget(self.x2_slider)
-        self.x2_slider_label = QLabel(f"Right limit: {self.x2_slider.value()}")
-        self.x2_slider_layout.addWidget(self.x2_slider_label)
-        self.graph_layout.addLayout(self.x2_slider_layout)
+        self.x2_limit = QLineEdit("10")
+        self.x2_limit.returnPressed.connect(self.change_limits)
+        self.x2_limit_label = QLabel(f"Right limit: ")
+        self.x2_limit_label.setFont(QFont("Arial", 9))
+        self.x_limits_layout.addWidget(self.x2_limit_label)
+        self.x_limits_layout.addWidget(self.x2_limit)
+        
+        self.x_limits_layout.addStretch()
+        self.graph_layout.addLayout(self.x_limits_layout)
+                        
+        self.a_limits_lable = QLabel("Acceleration limits:")
+        self.a_limits_lable.setFont(QFont("Arial", 12))
+        self.graph_layout.addWidget(self.a_limits_lable)
+        self.a_limits_layout = QHBoxLayout()
+        
+        self.a1_limit = QLineEdit("0")
+        self.a1_limit.returnPressed.connect(self.change_limits)
+        self.a1_limit_label = QLabel(f"Bottom limit: ")
+        self.a1_limit_label.setFont(QFont("Arial", 10))
+        self.a_limits_layout.addWidget(self.a1_limit_label)
+        self.a_limits_layout.addWidget(self.a1_limit)
+
+        self.a2_limit = QLineEdit("10")
+        self.a2_limit.returnPressed.connect(self.change_limits)
+        self.a2_limit_label = QLabel(f"Top limit: ")
+        self.a2_limit_label.setFont(QFont("Arial", 10))
+        self.a_limits_layout.addWidget(self.a2_limit_label)
+        self.a_limits_layout.addWidget(self.a2_limit)
+        
+        self.a_limits_layout.addStretch()
+        self.graph_layout.addLayout(self.a_limits_layout)
         
         self.graph_layout.addStretch()
 
@@ -239,9 +268,7 @@ class MainWindow(QMainWindow):
                 self.acceleretion_data[2] = np.append(self.acceleretion_data[2], measurement[2])
             
             if len(measurements) > 0:
-                self.x1_slider.setMaximum(len(self.acceleretion_data[0]) - 1)
-                self.x2_slider.setMaximum(len(self.acceleretion_data[0]) - 1)
-                self.x2_slider.setValue(len(self.acceleretion_data[0]) - 1)
+                self.x2_limit.setText(str(len(self.acceleretion_data[0]) - 1))
                 self.x = np.linspace(0, len(self.acceleretion_data[0]) - 1, len(self.acceleretion_data[0]))
                 
             self.update_graph()
@@ -323,6 +350,8 @@ class MainWindow(QMainWindow):
             
             module = np.sqrt(self.acceleretion_data[0]**2 + self.acceleretion_data[1]**2 + self.acceleretion_data[2]**2)
             self.module_graph.plot(self.x[:len(module)], module, pen=pg.mkPen(color="#00a67a", width=3), name="Module")
+            self.a1_limit.setText(str(min(module)))
+            self.a2_limit.setText(str(max(module)))
             
             self.graph.setXRange(0, len(module) - 1)
             self.graph.setYRange(min(min(self.acceleretion_data[0]), min(self.acceleretion_data[1]), min(self.acceleretion_data[2])), max(max(self.acceleretion_data[0]), max(self.acceleretion_data[1]), max(self.acceleretion_data[2])))
@@ -330,12 +359,19 @@ class MainWindow(QMainWindow):
             self.module_graph.setYRange(min(module), max(module))
     
     def change_limits(self):
-        self.graph.setXRange(self.x1_slider.value(), self.x2_slider.value())
-        self.module_graph.setXRange(self.x1_slider.value(), self.x2_slider.value())
-        self.x1_slider.setMaximum(self.x2_slider.value())
-        self.x2_slider.setMinimum(self.x1_slider.value())
-        self.x1_slider_label.setText(f" Left limit: {self.x1_slider.value()}")
-        self.x2_slider_label.setText(f"Right limit: {self.x2_slider.value()}")
+        if is_float(self.x1_limit.text()) and is_float(self.x2_limit.text()) and is_float(self.a1_limit.text()) and is_float(self.a1_limit.text()):
+            if float(self.x1_limit.text().replace(",", ".")) <= float(self.x2_limit.text().replace(",", ".")):
+                self.graph.setXRange(float(self.x1_limit.text().replace(",", ".")), float(self.x2_limit.text().replace(",", ".")))
+                self.x_graph.setXRange(float(self.x1_limit.text().replace(",", ".")), float(self.x2_limit.text().replace(",", ".")))
+                self.y_graph.setXRange(float(self.x1_limit.text().replace(",", ".")), float(self.x2_limit.text().replace(",", ".")))
+                self.z_graph.setXRange(float(self.x1_limit.text().replace(",", ".")), float(self.x2_limit.text().replace(",", ".")))
+                self.module_graph.setXRange(float(self.x1_limit.text().replace(",", ".")), float(self.x2_limit.text().replace(",", ".")))
+            if float(self.a1_limit.text().replace(",", ".")) <= float(self.a2_limit.text().replace(",", ".")):
+                self.graph.setYRange(float(self.a1_limit.text().replace(",", ".")), float(self.a2_limit.text().replace(",", ".")))
+                self.x_graph.setYRange(float(self.a1_limit.text().replace(",", ".")), float(self.a2_limit.text().replace(",", ".")))
+                self.y_graph.setYRange(float(self.a1_limit.text().replace(",", ".")), float(self.a2_limit.text().replace(",", ".")))
+                self.z_graph.setYRange(float(self.a1_limit.text().replace(",", ".")), float(self.a2_limit.text().replace(",", ".")))
+                self.module_graph.setYRange(float(self.a1_limit.text().replace(",", ".")), float(self.a2_limit.text().replace(",", ".")))
 
     def sync_graphs(self):
         self.module_graph.getViewBox().setXLink(self.graph.getViewBox() if self.sync_x_axis_checkbox.isChecked() else None)

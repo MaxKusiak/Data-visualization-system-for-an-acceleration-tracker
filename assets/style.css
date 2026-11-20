@@ -50,14 +50,14 @@ QCheckBox::indicator:checked {
     background-color: #3f8f29;
 }
 
-QComboBox {
+QComboBox, QPushButton {
     background-color: rgb(116, 115, 115);
     padding: 5px;
 }
 
-QPushButton {
+QLineEdit {
     background-color: rgb(116, 115, 115);
-    padding: 5px;
+    padding: 1px;
 }
 
 QPushButton:pressed {
