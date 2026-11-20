@@ -6,7 +6,7 @@ import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QSlider, QCheckBox, QComboBox, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QMainWindow, QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QSlider, QCheckBox, QComboBox, QMessageBox, QScrollArea
 from PySide6.QtCore import Qt, QThread, Signal
 
 class MainWindow(QMainWindow):
@@ -21,7 +21,7 @@ class MainWindow(QMainWindow):
             pass
 
         self.setWindowTitle("Data visualization system for an acceleration tracker")
-        self.resize(800, 600)
+        self.resize(920, 720)
         with open("assets/style.css", "r") as f:
             self.setStyleSheet(f.read())
 
@@ -91,6 +91,9 @@ class MainWindow(QMainWindow):
         self.settings_layout.addStretch()
         self.body_layout.addWidget(self.settings)
 
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+
         self.graph_widget = QWidget()
         self.graph_widget.setObjectName("graph")
         self.graph_widget.setProperty("class", "infoBlock")
@@ -98,7 +101,8 @@ class MainWindow(QMainWindow):
         self.graph_label = QLabel("Graph")
         self.graph_label.setFont(QFont("Arial", 16, QFont.Bold))
         self.graph_layout.addWidget(self.graph_label)
-        self.body_layout.addWidget(self.graph_widget)
+        scroll_area.setWidget(self.graph_widget)
+        self.body_layout.addWidget(scroll_area)
 
         self.graph_container = QWidget()
         self.graph_container.setObjectName("graphContainer")
@@ -114,6 +118,31 @@ class MainWindow(QMainWindow):
         self.axis_label = QLabel("X-axis: <span style='color: red;'>red</span>, Y-axis: <span style='color: green;'>green</span>, Z-axis: <span style='color: blue;'>blue</span>")
         self.graph_container_layout.addWidget(self.axis_label)
         self.graph_container_layout.addWidget(self.graph)
+        
+        self.x_graph = pg.PlotWidget()
+        self.x_graph.setMinimumHeight(200)
+        self.x_graph.setMaximumHeight(200)
+        self.x_graph.setBackground("#ffffff")
+        self.x_graph.setLabel("left", "a_x, m/s²")
+        self.x_graph.setLabel("bottom", "t, s")
+        self.graph_container_layout.addWidget(self.x_graph)
+        self.x_graph.hide()
+        self.y_graph = pg.PlotWidget()
+        self.y_graph.setMinimumHeight(200)
+        self.y_graph.setMaximumHeight(200)
+        self.y_graph.setBackground("#ffffff")
+        self.y_graph.setLabel("left", "a_y, m/s²")
+        self.y_graph.setLabel("bottom", "t, s")
+        self.graph_container_layout.addWidget(self.y_graph)
+        self.y_graph.hide()
+        self.z_graph = pg.PlotWidget()
+        self.z_graph.setMinimumHeight(200)
+        self.z_graph.setMaximumHeight(200)
+        self.z_graph.setBackground("#ffffff")
+        self.z_graph.setLabel("left", "a_z, m/s²")
+        self.z_graph.setLabel("bottom", "t, s")
+        self.graph_container_layout.addWidget(self.z_graph)
+        self.z_graph.hide()
 
         self.module_graph = pg.PlotWidget()
         self.module_graph.setMinimumHeight(200)
@@ -135,9 +164,15 @@ class MainWindow(QMainWindow):
         self.sync_y_axis_checkbox.setChecked(False)
         self.sync_y_axis_checkbox.stateChanged.connect(self.sync_graphs)
         self.sync_layout.addWidget(self.sync_y_axis_checkbox)
+        
+        self.separate_graphs_checkbox = QCheckBox("Separate the projection graphs")
+        self.separate_graphs_checkbox.setChecked(False)
+        self.separate_graphs_checkbox.stateChanged.connect(self.separate_graphs)
+        self.sync_layout.addWidget(self.separate_graphs_checkbox)
+        
         self.sync_layout.addStretch()
+        
         self.graph_container_layout.addLayout(self.sync_layout)
-
         self.graph_container_layout.addStretch()
         self.graph_layout.addWidget(self.graph_container)
 
@@ -282,6 +317,10 @@ class MainWindow(QMainWindow):
             self.graph.plot(self.x[:len(self.acceleretion_data[1])], self.acceleretion_data[1], pen=pg.mkPen(color="green", width=3), name="Y-axis")
             self.graph.plot(self.x[:len(self.acceleretion_data[2])], self.acceleretion_data[2], pen=pg.mkPen(color="blue", width=3), name="Z-axis")
             
+            self.x_graph.plot(self.x[:len(self.acceleretion_data[0])], self.acceleretion_data[0], pen=pg.mkPen(color="red", width=3), name="X-axis")
+            self.y_graph.plot(self.x[:len(self.acceleretion_data[1])], self.acceleretion_data[1], pen=pg.mkPen(color="green", width=3), name="Y-axis")
+            self.z_graph.plot(self.x[:len(self.acceleretion_data[2])], self.acceleretion_data[2], pen=pg.mkPen(color="blue", width=3), name="Z-axis")
+            
             module = np.sqrt(self.acceleretion_data[0]**2 + self.acceleretion_data[1]**2 + self.acceleretion_data[2]**2)
             self.module_graph.plot(self.x[:len(module)], module, pen=pg.mkPen(color="#00a67a", width=3), name="Module")
             
@@ -301,6 +340,24 @@ class MainWindow(QMainWindow):
     def sync_graphs(self):
         self.module_graph.getViewBox().setXLink(self.graph.getViewBox() if self.sync_x_axis_checkbox.isChecked() else None)
         self.module_graph.getViewBox().setYLink(self.graph.getViewBox() if self.sync_y_axis_checkbox.isChecked() else None)
+        self.x_graph.getViewBox().setXLink(self.graph.getViewBox() if self.sync_x_axis_checkbox.isChecked() else None)
+        self.x_graph.getViewBox().setYLink(self.graph.getViewBox() if self.sync_y_axis_checkbox.isChecked() else None)
+        self.y_graph.getViewBox().setXLink(self.graph.getViewBox() if self.sync_x_axis_checkbox.isChecked() else None)
+        self.y_graph.getViewBox().setYLink(self.graph.getViewBox() if self.sync_y_axis_checkbox.isChecked() else None)
+        self.z_graph.getViewBox().setXLink(self.graph.getViewBox() if self.sync_x_axis_checkbox.isChecked() else None)
+        self.z_graph.getViewBox().setYLink(self.graph.getViewBox() if self.sync_y_axis_checkbox.isChecked() else None)
+
+    def separate_graphs(self):
+        if self.separate_graphs_checkbox.isChecked():
+            self.graph.hide()
+            self.x_graph.show()
+            self.y_graph.show()
+            self.z_graph.show()
+        else:
+            self.graph.show()
+            self.x_graph.hide()
+            self.y_graph.hide()
+            self.z_graph.hide()
 
     def get_frequency(self):
         pass
