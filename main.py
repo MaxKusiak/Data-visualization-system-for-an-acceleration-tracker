@@ -6,7 +6,7 @@ import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QSlider, QCheckBox, QComboBox, QMessageBox, QScrollArea, QDoubleSpinBox
+from PySide6.QtWidgets import QFileDialog, QMainWindow, QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QSlider, QCheckBox, QComboBox, QMessageBox, QScrollArea, QDoubleSpinBox, QRadioButton
 from PySide6.QtCore import Qt, QThread, Signal
 
 def is_float(s):
@@ -100,17 +100,18 @@ class MainWindow(QMainWindow):
 
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
-
+        
         self.graph_widget = QWidget()
         self.graph_widget.setObjectName("graph")
         self.graph_widget.setProperty("class", "infoBlock")
+        self.graph_widget.setContentsMargins(13, 0, 13, 7)
         self.graph_layout = QVBoxLayout(self.graph_widget)
         self.graph_label = QLabel("Graph")
         self.graph_label.setFont(QFont("Arial", 16, QFont.Bold))
         self.graph_layout.addWidget(self.graph_label)
         scroll_area.setWidget(self.graph_widget)
         self.body_layout.addWidget(scroll_area)
-
+        
         self.graph_container = QWidget()
         self.graph_container.setObjectName("graphContainer")
         self.graph_container.setContentsMargins(7, 7, 7, 7)
@@ -161,12 +162,13 @@ class MainWindow(QMainWindow):
         self.graph_container_layout.addWidget(self.module_graph_label)
         self.graph_container_layout.addWidget(self.module_graph)
 
+        self.graphs = {"XYZ": self.graph, "X": self.x_graph, "Y": self.y_graph, "Z": self.z_graph, "M": self.module_graph}
+
         self.sync_layout = QHBoxLayout()
         self.sync_x_axis_checkbox = QCheckBox("Sync X-axis")
         self.sync_x_axis_checkbox.setChecked(False)
         self.sync_x_axis_checkbox.stateChanged.connect(self.sync_graphs)
         self.sync_layout.addWidget(self.sync_x_axis_checkbox)
-        self.graph_container_layout.addLayout(self.sync_layout)
         self.sync_y_axis_checkbox = QCheckBox("Sync Y-axis")
         self.sync_y_axis_checkbox.setChecked(False)
         self.sync_y_axis_checkbox.stateChanged.connect(self.sync_graphs)
@@ -177,55 +179,101 @@ class MainWindow(QMainWindow):
         self.separate_graphs_checkbox.stateChanged.connect(self.separate_graphs)
         self.sync_layout.addWidget(self.separate_graphs_checkbox)
         
+        self.show_cursors_checkbox = QCheckBox("Show cursors")
+        self.show_cursors_checkbox.setChecked(False)
+        self.show_cursors_checkbox.stateChanged.connect(self.show_cursors)
+        self.sync_layout.addWidget(self.show_cursors_checkbox)
+        
         self.sync_layout.addStretch()
+        self.graph_container_layout.addLayout(self.sync_layout)
+        
+        self.sync_layout2 = QHBoxLayout()
+        self.sync_cursors_checkbox = QCheckBox("Sync cursors")
+        self.sync_cursors_checkbox.setChecked(False)
+        self.sync_layout2.addWidget(self.sync_cursors_checkbox)
+        
+        self.sync_layout2.addStretch()
+        self.graph_container_layout.addLayout(self.sync_layout2)
+        
+        self.cursor_mode = 0
+        self.cursor_mode_layout = QHBoxLayout()
+        self.cursor_mode_label = QLabel("Choose cursor mode:")
+        self.cursor_mode_label.setFont(QFont("Arial", 9))
+        self.cursor_mode_label.setStyleSheet("padding: 0px; margin: 0px;")
+        self.cursor_mode_layout.addWidget(self.cursor_mode_label)
+        self.cursor_mode_none = QRadioButton("None")
+        self.cursor_mode_1 = QRadioButton("First cursor")
+        self.cursor_mode_2 = QRadioButton("Second cursor")
+        self.cursor_mode_lr = QRadioButton("L-R click mode")
+        self.cursor_mode_none.toggled.connect(self.cursor_mode_toggled)
+        self.cursor_mode_1.toggled.connect(self.cursor_mode_toggled)
+        self.cursor_mode_2.toggled.connect(self.cursor_mode_toggled)
+        self.cursor_mode_lr.toggled.connect(self.cursor_mode_toggled)
+        self.cursor_mode_none.setChecked(True)
+        self.cursor_mode_layout.addWidget(self.cursor_mode_none)
+        self.cursor_mode_layout.addWidget(self.cursor_mode_1)
+        self.cursor_mode_layout.addWidget(self.cursor_mode_2)
+        self.cursor_mode_layout.addWidget(self.cursor_mode_lr)
+        self.cursor_mode_layout.addStretch()
         
         self.graph_container_layout.addLayout(self.sync_layout)
+        self.graph_container_layout.addLayout(self.cursor_mode_layout)
         self.graph_container_layout.addStretch()
         self.graph_layout.addWidget(self.graph_container)
 
-        self.x_limits_lable = QLabel("Time limits:")
-        self.x_limits_lable.setFont(QFont("Arial", 12))
-        self.graph_layout.addWidget(self.x_limits_lable)
-        self.x_limits_layout = QHBoxLayout()
+        self.choose_graph_label = QLabel("Select a graph to display cursor values")
+        self.choose_graph_label.setFont(QFont("Arial", 9))
+        self.choose_graph_label.setStyleSheet("padding: 0px; margin: 0px; padding-left: 5px;")
+        self.choose_graph_label.setContentsMargins(0, 5, 0, 0)
+        self.choose_graph = QComboBox()
+        for text, graph_name in [("Graph of all projections", "XYZ"), ("X axis graph", "X"), ("Y axis graph", "Y"), ("Z axis graph", "Z"), ("Module graph", "M")]:
+            self.choose_graph.addItem(text, graph_name)
+        self.choose_graph.currentIndexChanged.connect(self.change_cursor_info)
+        self.graph_layout.addWidget(self.choose_graph_label)
+        self.graph_layout.addWidget(self.choose_graph)
+        self.choose_graph_label.hide()
+        self.choose_graph.hide()
         
-        self.x1_limit = QLineEdit("0")
-        self.x1_limit.returnPressed.connect(self.change_limits)
-        self.x1_limit_label = QLabel(f"Left limit: ")
-        self.x1_limit_label.setFont(QFont("Arial", 9))
-        self.x_limits_layout.addWidget(self.x1_limit_label)
-        self.x_limits_layout.addWidget(self.x1_limit)
+        self.cursor_data_layout = QHBoxLayout()
+        
+        self.x1 = QLineEdit("0")
+        self.x1.returnPressed.connect(self.change_cursor_x1)
+        self.x1_label = QLabel(f"X1: ")
+        self.x1_label.setFont(QFont("Arial", 9))
+        self.x1_label.setStyleSheet("padding: 0px; margin: 0px; padding-left: 5px;")
+        self.y1 = QLabel(f"Y1: ")
+        self.y1.setFont(QFont("Arial", 9))
+        self.y1.setStyleSheet("padding: 0px; margin: 0px; padding-left: 5px;")
+        self.cursor_data_layout.addWidget(self.x1_label)
+        self.cursor_data_layout.addWidget(self.x1)
+        self.cursor_data_layout.addWidget(self.y1)
+        self.x1.hide()
+        self.x1_label.hide()
+        self.y1.hide()
 
-        self.x2_limit = QLineEdit("10")
-        self.x2_limit.returnPressed.connect(self.change_limits)
-        self.x2_limit_label = QLabel(f"Right limit: ")
-        self.x2_limit_label.setFont(QFont("Arial", 9))
-        self.x_limits_layout.addWidget(self.x2_limit_label)
-        self.x_limits_layout.addWidget(self.x2_limit)
+        self.x2 = QLineEdit("0")
+        self.x2.returnPressed.connect(self.change_cursor_x2)
+        self.x2_label = QLabel(f"X2: ")
+        self.x2_label.setFont(QFont("Arial", 9))
+        self.x2_label.setStyleSheet("padding: 0px; margin: 0px; padding-left: 5px;")
+        self.y2 = QLabel(f"Y2: ")
+        self.y2.setFont(QFont("Arial", 9))
+        self.y2.setStyleSheet("padding: 0px; margin: 0px; padding-left: 5px;")
+        self.cursor_data_layout.addWidget(self.x2_label)
+        self.cursor_data_layout.addWidget(self.x2)
+        self.cursor_data_layout.addWidget(self.y2)
+        self.x2.hide()
+        self.x2_label.hide()
+        self.y2.hide()
         
-        self.x_limits_layout.addStretch()
-        self.graph_layout.addLayout(self.x_limits_layout)
-                        
-        self.a_limits_lable = QLabel("Acceleration limits:")
-        self.a_limits_lable.setFont(QFont("Arial", 12))
-        self.graph_layout.addWidget(self.a_limits_lable)
-        self.a_limits_layout = QHBoxLayout()
+        self.delta = QLabel("")
+        self.delta.setFont(QFont("Arial", 9))
+        self.delta.setStyleSheet("padding: 0px; margin: 0px; padding-left: 5px;")
+        self.graph_layout.addWidget(self.delta)
+        self.delta.hide()
         
-        self.a1_limit = QLineEdit("0")
-        self.a1_limit.returnPressed.connect(self.change_limits)
-        self.a1_limit_label = QLabel(f"Bottom limit: ")
-        self.a1_limit_label.setFont(QFont("Arial", 10))
-        self.a_limits_layout.addWidget(self.a1_limit_label)
-        self.a_limits_layout.addWidget(self.a1_limit)
-
-        self.a2_limit = QLineEdit("10")
-        self.a2_limit.returnPressed.connect(self.change_limits)
-        self.a2_limit_label = QLabel(f"Top limit: ")
-        self.a2_limit_label.setFont(QFont("Arial", 10))
-        self.a_limits_layout.addWidget(self.a2_limit_label)
-        self.a_limits_layout.addWidget(self.a2_limit)
-        
-        self.a_limits_layout.addStretch()
-        self.graph_layout.addLayout(self.a_limits_layout)
+        self.cursor_data_layout.addStretch()
+        self.graph_layout.addLayout(self.cursor_data_layout)
         
         self.graph_layout.addStretch()
 
@@ -235,11 +283,41 @@ class MainWindow(QMainWindow):
         open_file.triggered.connect(self.open_file)
         save_file.triggered.connect(self.save_file)
 
-        # port_menu = self.menuBar().addMenu("Port")
-        # connect_port = port_menu.addAction("Connect")
-        # disconnect_port = port_menu.addAction("Disconnect")
-        # connect_port.triggered.connect(self.connect_port)
-        # disconnect_port.triggered.connect(self.disconnect_port)
+        self.curves = {
+            "XYZ": None,
+            "X": None,
+            "Y": None,
+            "Z": None,
+            "M": None
+        }
+        self.cursors = {}
+        self.cursor_positions = {
+            name: [None, None, None, None]
+            for name in self.graphs
+        }
+        for name, graph in self.graphs.items():
+            cursor1 = pg.InfiniteLine(
+                angle=90,
+                movable=True,
+                pen=pg.mkPen("b", width=2)
+            )
+            cursor2 = pg.InfiniteLine(
+                angle=90,
+                movable=True,
+                pen=pg.mkPen("r", width=2)
+            )
+            graph.addItem(cursor1)
+            graph.addItem(cursor2)
+            cursor1.setVisible(False)
+            cursor2.setVisible(False)
+            cursor1.sigPositionChanged.connect(lambda line=cursor1, n=name: self.cursor_moves(line, n, 0))
+            cursor2.sigPositionChanged.connect(lambda line=cursor2, n=name: self.cursor_moves(line, n, 1))
+            self.cursors[name] = [cursor1, cursor2]
+        for name, cursors in self.cursors.items():
+            for i, cursor in enumerate(cursors):
+                cursor.sigPositionChanged.connect(lambda line=cursor, n=name, idx=i: self.sync_cursors(line, n, idx))
+        for name, graph in self.graphs.items():
+            graph.scene().sigMouseClicked.connect(lambda event, n=name: self.on_graph_clicked(event, n))
 
         self.centralWidget = QWidget()
         self.centralWidget.setObjectName("centralWidget")
@@ -268,7 +346,7 @@ class MainWindow(QMainWindow):
                 self.acceleretion_data[2] = np.append(self.acceleretion_data[2], measurement[2])
             
             if len(measurements) > 0:
-                self.x2_limit.setText(str(len(self.acceleretion_data[0]) - 1))
+                # self.x2_limit.setText(str(len(self.acceleretion_data[0]) - 1))
                 self.x = np.linspace(0, len(self.acceleretion_data[0]) - 1, len(self.acceleretion_data[0]))
                 
             self.update_graph()
@@ -335,43 +413,51 @@ class MainWindow(QMainWindow):
         else:
             self.ports_list.addItem("Немає COM портів", None)
 
+    def clear_graph(self, graph_name):
+        graph = self.graphs[graph_name]
+        graph.clear()
+        for cursor in self.cursors[graph_name]:
+            graph.addItem(cursor)
+            cursor.setVisible(False)
+        self.cursor_positions[graph_name] = [None, None, None, None]
+
     def update_graph(self):
-        self.graph.clear()
-        self.module_graph.clear()
+        for name in self.graphs:
+            self.clear_graph(name)
         
         if len(self.acceleretion_data[0]) > 0 and len(self.acceleretion_data[1]) > 0 and len(self.acceleretion_data[2]) > 0:
             self.graph.plot(self.x[:len(self.acceleretion_data[0])], self.acceleretion_data[0], pen=pg.mkPen(color="red", width=3), name="X-axis")
             self.graph.plot(self.x[:len(self.acceleretion_data[1])], self.acceleretion_data[1], pen=pg.mkPen(color="green", width=3), name="Y-axis")
             self.graph.plot(self.x[:len(self.acceleretion_data[2])], self.acceleretion_data[2], pen=pg.mkPen(color="blue", width=3), name="Z-axis")
             
-            self.x_graph.plot(self.x[:len(self.acceleretion_data[0])], self.acceleretion_data[0], pen=pg.mkPen(color="red", width=3), name="X-axis")
-            self.y_graph.plot(self.x[:len(self.acceleretion_data[1])], self.acceleretion_data[1], pen=pg.mkPen(color="green", width=3), name="Y-axis")
-            self.z_graph.plot(self.x[:len(self.acceleretion_data[2])], self.acceleretion_data[2], pen=pg.mkPen(color="blue", width=3), name="Z-axis")
+            curve_x = self.x_graph.plot(self.x[:len(self.acceleretion_data[0])], self.acceleretion_data[0], pen=pg.mkPen(color="red", width=3), name="X-axis")
+            curve_y = self.y_graph.plot(self.x[:len(self.acceleretion_data[1])], self.acceleretion_data[1], pen=pg.mkPen(color="green", width=3), name="Y-axis")
+            curve_z = self.z_graph.plot(self.x[:len(self.acceleretion_data[2])], self.acceleretion_data[2], pen=pg.mkPen(color="blue", width=3), name="Z-axis")
             
             module = np.sqrt(self.acceleretion_data[0]**2 + self.acceleretion_data[1]**2 + self.acceleretion_data[2]**2)
-            self.module_graph.plot(self.x[:len(module)], module, pen=pg.mkPen(color="#00a67a", width=3), name="Module")
-            self.a1_limit.setText(str(min(module)))
-            self.a2_limit.setText(str(max(module)))
+            curve_m = self.module_graph.plot(self.x[:len(module)], module, pen=pg.mkPen(color="#00a67a", width=3), name="Module")
+            # self.a1_limit.setText(str(min(module)))
+            # self.a2_limit.setText(str(max(module)))
             
             self.graph.setXRange(0, len(module) - 1)
             self.graph.setYRange(min(min(self.acceleretion_data[0]), min(self.acceleretion_data[1]), min(self.acceleretion_data[2])), max(max(self.acceleretion_data[0]), max(self.acceleretion_data[1]), max(self.acceleretion_data[2])))
             self.module_graph.setXRange(0, len(module) - 1)
             self.module_graph.setYRange(min(module), max(module))
+            
+            self.curves = {
+                "XYZ": [curve_x, curve_y, curve_z],
+                "X": [curve_x],
+                "Y": [curve_y],
+                "Z": [curve_z],
+                "M": [curve_m]
+            }
     
-    def change_limits(self):
-        if is_float(self.x1_limit.text()) and is_float(self.x2_limit.text()) and is_float(self.a1_limit.text()) and is_float(self.a1_limit.text()):
-            if float(self.x1_limit.text().replace(",", ".")) <= float(self.x2_limit.text().replace(",", ".")):
-                self.graph.setXRange(float(self.x1_limit.text().replace(",", ".")), float(self.x2_limit.text().replace(",", ".")))
-                self.x_graph.setXRange(float(self.x1_limit.text().replace(",", ".")), float(self.x2_limit.text().replace(",", ".")))
-                self.y_graph.setXRange(float(self.x1_limit.text().replace(",", ".")), float(self.x2_limit.text().replace(",", ".")))
-                self.z_graph.setXRange(float(self.x1_limit.text().replace(",", ".")), float(self.x2_limit.text().replace(",", ".")))
-                self.module_graph.setXRange(float(self.x1_limit.text().replace(",", ".")), float(self.x2_limit.text().replace(",", ".")))
-            if float(self.a1_limit.text().replace(",", ".")) <= float(self.a2_limit.text().replace(",", ".")):
-                self.graph.setYRange(float(self.a1_limit.text().replace(",", ".")), float(self.a2_limit.text().replace(",", ".")))
-                self.x_graph.setYRange(float(self.a1_limit.text().replace(",", ".")), float(self.a2_limit.text().replace(",", ".")))
-                self.y_graph.setYRange(float(self.a1_limit.text().replace(",", ".")), float(self.a2_limit.text().replace(",", ".")))
-                self.z_graph.setYRange(float(self.a1_limit.text().replace(",", ".")), float(self.a2_limit.text().replace(",", ".")))
-                self.module_graph.setYRange(float(self.a1_limit.text().replace(",", ".")), float(self.a2_limit.text().replace(",", ".")))
+    def change_cursor_x1(self):
+        if is_float(self.x1.text()):
+            self.cursor_x_changed(self.choose_graph.currentData(), float(self.x1.text().replace(",", ".")), 0)
+    def change_cursor_x2(self):
+            if is_float(self.x2.text()):
+                self.cursor_x_changed(self.choose_graph.currentData(), float(self.x2.text().replace(",", ".")), 1)
 
     def sync_graphs(self):
         self.module_graph.getViewBox().setXLink(self.graph.getViewBox() if self.sync_x_axis_checkbox.isChecked() else None)
@@ -395,6 +481,156 @@ class MainWindow(QMainWindow):
             self.y_graph.hide()
             self.z_graph.hide()
 
+    def get_y_text(self, graph_name, cursor_index):
+        s = ""
+        y_m = []
+        if self.curves[graph_name] != None and self.cursor_positions[graph_name][cursor_index] != None:
+            if graph_name == "XYZ":
+                m = []
+                for curve in self.curves[graph_name]:
+                    x_data, y_data = curve.getData()
+                    if x_data is None or len(x_data) == 0:
+                        continue
+                    
+                    y = np.interp(self.cursor_positions[graph_name][cursor_index], x_data, y_data)
+                    y_m.append(y)
+                    m.append(round(y, 5))
+                s = f"Y{cursor_index + 1}: X-axis: {m[0]}\nY-axis: {m[1]}\nZ-axis: {m[2]}"
+            else:
+                x_data, y_data = self.curves[graph_name][0].getData()
+                if not (x_data is None or len(x_data) == 0):   
+                    y = np.interp(self.cursor_positions[graph_name][cursor_index], x_data, y_data)
+                    y_m.append(y)
+                    s = f"Y{cursor_index + 1}: {round(y, 5)}"
+        return s, y_m
+
+    def show_cursor_info(self, graph_name, y1_text, y2_text):
+        x1 = self.cursor_positions[graph_name][0]
+        y1 = self.cursor_positions[graph_name][2]
+        x2 = self.cursor_positions[graph_name][1]
+        y2 = self.cursor_positions[graph_name][3]
+
+        index = self.choose_graph.findData(graph_name)
+        if index != -1:
+            self.choose_graph.setCurrentIndex(index)
+        if x1 != None:
+            self.x1.show()
+            self.x1_label.show()
+            self.x1.setText(str(round(x1, 5)))
+            self.y1.setText(y1_text)
+            self.y1.show()
+        else:
+            self.x1.hide()
+            self.x1_label.hide()
+            self.y1.hide()
+        if x2 != None:
+            self.x2.show()
+            self.x2_label.show()
+            self.x2.setText(str(round(x2, 5)))
+            self.y2.setText(y2_text)
+            self.y2.show()
+        else:
+            self.x2.hide()
+            self.x2_label.hide()
+            self.y2.hide()
+        if x1 != None and x2 != None:
+            s = f"Delta X: {abs(round(x1 - x2, 5))} | Delta Y: "
+            if len(y1) == 1:
+                s += f"{round(abs(y1[0] - y2[0]), 5)}"
+            else:
+                s += f"x-axis {round(abs(y1[0] - y2[0]), 5)}, y-axis {round(abs(y1[1] - y2[1]), 5)}, z-axis {round(abs(y1[2] - y2[2]), 5)}"
+            self.delta.setText(s)
+            self.delta.show()
+        else:
+            self.delta.hide()
+                
+    def cursor_x_changed(self, graph_name, x, cursor_id):
+        self.cursor_positions[graph_name][cursor_id] = x
+        y = self.get_y_text(graph_name, cursor_id)[1]
+        self.cursor_positions[graph_name][cursor_id + 2] = y
+        
+        self.cursors[graph_name][cursor_id].setPos(x)
+        self.cursors[graph_name][cursor_id].setVisible(True)
+        
+        self.show_cursor_info(graph_name, self.get_y_text(graph_name, 0)[0], self.get_y_text(graph_name, 1)[0])
+    
+    def on_graph_clicked(self, event, graph_name):
+        if self.cursor_mode != 0 and self.show_cursors_checkbox.isChecked():
+            if self.cursor_mode != 3:
+                if event.button() != Qt.MouseButton.LeftButton:
+                    return
+            elif event.button() != Qt.MouseButton.LeftButton and event.button() != Qt.MouseButton.RightButton:
+                return
+
+            graph = self.graphs[graph_name]
+            view_box = graph.getViewBox()
+
+            mouse_pos = event.scenePos()
+
+            if not view_box.sceneBoundingRect().contains(mouse_pos):
+                return
+
+            x = view_box.mapSceneToView(mouse_pos).x()
+            
+            cursor_id = 0
+            if self.cursor_mode != 3:
+                cursor_id = self.cursor_mode - 1
+            else:
+                cursor_id = 0 if event.button() == Qt.MouseButton.LeftButton else 1
+            
+            self.cursor_x_changed(graph_name, x, cursor_id)
+        
+    def cursor_mode_toggled(self):
+        btn = self.sender()
+        if btn.isChecked():
+            self.cursor_mode = 0 if btn.text() == "None" else 1 if btn.text() == "First cursor" else 2 if btn.text() == "Second cursor" else 3
+            if self.cursor_mode == 3:
+                for graph in self.graphs.values():
+                    graph.getPlotItem().setMenuEnabled(False)
+            else:
+                for graph in self.graphs.values():
+                    graph.getPlotItem().setMenuEnabled(True)
+
+    def show_cursors(self):
+        if self.show_cursors_checkbox.isChecked():
+            for name, positions in self.cursor_positions.items():
+                if positions[0] != None:
+                    self.cursors[name][0].setVisible(True)
+                if positions[1] != None:
+                    self.cursors[name][1].setVisible(True)
+            self.choose_graph_label.show()
+            self.choose_graph.show()
+            self.show_cursor_info(self.choose_graph.currentData(), self.get_y_text(self.choose_graph.currentData(), 0)[0], self.get_y_text(self.choose_graph.currentData(), 1)[0])
+        else:
+            for name, cursors in self.cursors.items():
+                for i in cursors:
+                    i.setVisible(False)
+            self.choose_graph_label.hide()
+            self.choose_graph.hide()
+            self.x1.hide()
+            self.x1_label.hide()
+            self.y1.hide()
+            self.x2.hide()
+            self.x2_label.hide()
+            self.y2.hide()
+            self.delta.hide()
+
+    def change_cursor_info(self):
+        self.show_cursor_info(self.choose_graph.currentData(), self.get_y_text(self.choose_graph.currentData(), 0)[0], self.get_y_text(self.choose_graph.currentData(), 1)[0])
+
+    def cursor_moves(self, cursor, graph_name, cursor_id):
+        self.cursor_x_changed(graph_name, cursor.value(), cursor_id)
+    
+    def sync_cursors(self, cursor, graph_name, cursor_id):
+        if not self.sync_cursors_checkbox.isChecked():
+            return
+        x = cursor.value()
+        
+        for name, cursors in self.cursors.items():
+            if name == graph_name:
+                continue
+            cursors[cursor_id].setValue(x)
+    
     def get_frequency(self):
         pass
     

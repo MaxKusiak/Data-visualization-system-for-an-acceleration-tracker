@@ -64,3 +64,10 @@ QPushButton:pressed {
     background-color: rgb(79, 79, 79);
 }
 
+QRadioButton {
+    color: black;
+}
+
+QScrollArea {
+    border: none;
+}
